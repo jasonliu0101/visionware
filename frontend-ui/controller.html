@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionWave API 遙控器</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="controller.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="remote-control">
+            <div class="header">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="20" cy="20" r="18" stroke="url(#gradient1)" stroke-width="2" fill="none" />
+                        <circle cx="20" cy="20" r="12" fill="url(#gradient2)" />
+                        <circle cx="20" cy="20" r="6" fill="white" opacity="0.8" />
+                        <defs>
+                            <linearGradient id="gradient1" x1="0" y1="0" x2="40" y2="40">
+                                <stop offset="0%" stop-color="#667eea" />
+                                <stop offset="100%" stop-color="#764ba2" />
+                            </linearGradient>
+                            <linearGradient id="gradient2" x1="0" y1="0" x2="40" y2="40">
+                                <stop offset="0%" stop-color="#667eea" stop-opacity="0.4" />
+                                <stop offset="100%" stop-color="#764ba2" stop-opacity="0.6" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h1>API 遙控器</h1>
+                <div class="status-indicator" id="status-indicator">
+                    <span class="dot"></span>
+                    <span class="text">已啟動</span>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <p class="info-text">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                    此遙控器模擬後端 API 回傳資料，請同時開啟主監測頁面進行測試
+                </p>
+            </div>
+
+            <div class="controls">
+                <!-- Distance Safe Control -->
+                <div class="control-item">
+                    <div class="control-header">
+                        <div class="control-icon distance">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </div>
+                        <div class="control-info">
+                            <h3>視距安全</h3>
+                            <p class="control-description">distance_safe</p>
+                        </div>
+                    </div>
+                    <div class="toggle-container">
+                        <label class="toggle">
+                            <input type="checkbox" id="distance-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                        <span class="toggle-label" id="distance-label">安全 (true)</span>
+                    </div>
+                </div>
+
+                <!-- Sitting Control -->
+                <div class="control-item">
+                    <div class="control-header">
+                        <div class="control-icon sitting">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
+                                <path d="M8 8v5h8V8M6 13h12l-1 8H7l-1-8z" />
+                            </svg>
+                        </div>
+                        <div class="control-info">
+                            <h3>是否有偵測到人</h3>
+                            <p class="control-description">sitting</p>
+                        </div>
+                    </div>
+                    <div class="toggle-container">
+                        <label class="toggle">
+                            <input type="checkbox" id="sitting-toggle">
+                            <span class="slider"></span>
+                        </label>
+                        <span class="toggle-label" id="sitting-label">未偵測 (false)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="current-state">
+                <h3>目前 API 回傳值</h3>
+                <div class="json-display">
+                    <pre id="json-output">{
+  "distance_safe": true,
+  "sitting": false
+}</pre>
+                </div>
+            </div>
+
+            <div class="quick-actions">
+                <h3>快速場景測試</h3>
+                <div class="action-buttons">
+                    <button class="action-btn safe" onclick="setScenario('safe')">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                            <polyline points="22 4 12 14.01 9 11.01" />
+                        </svg>
+                        理想狀態
+                    </button>
+                    <button class="action-btn warning" onclick="setScenario('distance-warning')">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        距離過近
+                    </button>
+                    <button class="action-btn sitting-btn" onclick="setScenario('sitting')">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
+                            <path d="M8 8v5h8V8M6 13h12l-1 8H7l-1-8z" />
+                        </svg>
+                        久坐中
+                    </button>
+                    <button class="action-btn danger" onclick="setScenario('danger')">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path
+                                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        危險狀態
+                    </button>
+                </div>
+            </div>
+
+            <div class="test-section">
+                <h3>🧪 測試功能</h3>
+                <div class="test-info">
+                    <p>點擊下方按鈕可立即觸發久坐警示通知，無需等待 30 分鐘</p>
+                </div>
+                <div class="action-buttons">
+                    <button class="action-btn test-alert" onclick="triggerTestAlert()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                        </svg>
+                        立即測試久坐警示
+                    </button>
+                </div>
+            </div>
+
+            <div class="footer-info">
+                <p>💡 主監測頁面每 3 秒會自動讀取此遙控器的設定值</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="controller.js"></script>
+</body>
+
+</html>
