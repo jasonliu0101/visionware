@@ -29,7 +29,7 @@ def compute_residual_profile(frame, bg):
 
 
 # ===============================================
-# Real-time classifier（新版：多幀平滑 + 變動量）
+# Real-time classifier（新版：多幀平滑 + 變動量 + 動態校準）
 # ===============================================
 class RadarStateTracker:
     def __init__(self, bg, window_size=8):
@@ -37,8 +37,10 @@ class RadarStateTracker:
         self.history = deque(maxlen=window_size)  # 儲存最近 N 幀 avg residual
         self.window_size = window_size
 
-        self.STD_THRESHOLD = 0.0003  # 變動量閾值
-        self.AVG_THRESHOLD_FOR_SITTING = 0.0097 # 【新增】平均值閾值，過低判定為純背景/雜訊
+        # ===== Sitting 判定閾值（修改為動態校準） =====
+        self.STD_THRESHOLD = 0.0003            # 變動量閾值 (微動)
+        self.AVG_THRESHOLD_FOR_SITTING = None  # 初始化為 None，等待校準！
+        self.calibration_data = []             # 用於儲存無人數據的緩衝
 
         # ===== 統計計數（新增） =====
         self.count_distance_safe_true = 0
@@ -62,7 +64,7 @@ class RadarStateTracker:
         self.true_event_lock = False
         self.false_event_lock = False
 
-    # 【新增】用於重置每個檔案的統計計數和連續狀態
+
     def reset_single_file_stats(self):
         """
         重置單一檔案的統計計數和連續狀態，但保留整個 folder 的事件計數。
@@ -80,7 +82,34 @@ class RadarStateTracker:
         self.false_event_lock = False
 
 
-    def process_frame(self, frame):
+    def calibrate_avg_threshold(self, k=3):
+        """
+        使用收集到的 calibration_data (無人數據的 window_avg) 
+        來設定 self.AVG_THRESHOLD_FOR_SITTING (mu + k*sigma)。
+        """
+        if not self.calibration_data:
+            print("[WARNING] Calibration data is empty. Using default AVG threshold: 0.005")
+            self.AVG_THRESHOLD_FOR_SITTING = 0.005
+            return
+
+        data = np.array(self.calibration_data)
+        mu = np.mean(data)
+        sigma = np.std(data)
+        
+        # 設定閾值 = 平均值 + k * 標準差
+        new_threshold = mu + k * sigma
+        
+        # 確保閾值不會過低（設定最低安全值 0.001）
+        self.AVG_THRESHOLD_FOR_SITTING = max(new_threshold, 0.001) 
+        
+        print(f"[INFO] Calibration done. Mu={mu:.6f}, Sigma={sigma:.6f}")
+        print(f"[INFO] Set AVG_THRESHOLD_FOR_SITTING = {self.AVG_THRESHOLD_FOR_SITTING:.6f} (k={k})")
+        
+        # 清空校準數據
+        self.calibration_data.clear()
+
+
+    def process_frame(self, frame, is_calibrating=False):
 
         # Step 1: 計算 residual profile
         rp = compute_residual_profile(frame, self.bg)
@@ -91,6 +120,10 @@ class RadarStateTracker:
 
         # 若尚未累積滿 window_size，先不判斷
         if len(self.history) < self.window_size:
+            # 如果是校準模式，累積不滿時不做任何事
+            if is_calibrating:
+                return None 
+            # 否則回傳預設值
             return {
                 "distance_safe": True,
                 "sitting": True,
@@ -102,23 +135,26 @@ class RadarStateTracker:
         # Step 3: 多幀統計
         window_avg = np.mean(self.history)
         window_std = np.std(self.history)
+        
+        # 【校準模式】：只儲存數據，不進行分類判斷
+        if is_calibrating:
+            self.calibration_data.append(window_avg)
+            return None 
+
+        # 確保已校準
+        avg_thresh = self.AVG_THRESHOLD_FOR_SITTING if self.AVG_THRESHOLD_FOR_SITTING is not None else 0.005
 
         # ============================================
-        # Sitting（是否有人）
-        # 背景 std 幾乎=0；只要有微動 → std > 0.0003
-        # 【註】：此處可能是「無人卻判定有人」的邏輯問題所在，因標準差太敏感。
+        # Sitting（是否有人）- 兩階段邏輯
         # ============================================
-        # 階段 1: 如果殘差平均值過低，直接判定為無人（純背景/雜訊）
-        if window_avg < self.AVG_THRESHOLD_FOR_SITTING:
-            sitting = False
+        sitting = False # 預設為無人
         
-        # 階段 2: 如果平均值夠高 (可能有人)，再檢查是否有微動 (std)
-        else:
+        # 階段 1: 檢查殘差平均值（物體大小/強度），太低判定為背景/雜訊
+        if window_avg > avg_thresh: # 使用校準過的值
+            # 階段 2: 檢查變動量（是否有微動），有微動才判定為有人
             if window_std > self.STD_THRESHOLD:
                 sitting = True
-            else:
-                sitting = False
-
+        
         # ============================================
         # Distance Safe（是否 >= 40cm）
         # <40cm 時 residual 明顯偏高 (> 0.06)
@@ -147,24 +183,21 @@ class RadarStateTracker:
         # ---- True 連續事件 ----
         if self.consecutive_true >= 285:
             self.has_true_285 = True
-            if not self.true_event_lock:           # 第一次進入事件
-                self.count_true_285_events += 1    # 計一次事件
-                self.true_event_lock = True        # 上鎖避免重複計數
+            if not self.true_event_lock:
+                self.count_true_285_events += 1
+                self.true_event_lock = True
         else:
-            self.true_event_lock = False           # 打斷後解鎖才能算下一次
+            self.true_event_lock = False
 
 
         # ---- False 連續事件 ----
         if self.consecutive_false >= 285:
             self.has_false_285 = True
-            if not self.false_event_lock:          # 第一次進入事件
-                self.count_false_285_events += 1   # 計一次事件
-                self.false_event_lock = True       # 上鎖
+            if not self.false_event_lock:
+                self.count_false_285_events += 1
+                self.false_event_lock = True
         else:
-            self.false_event_lock = False          # 打斷後解鎖
-
-
-    
+            self.false_event_lock = False
 
 
         if sitting:
@@ -212,15 +245,16 @@ def run_realtime_test_folder(folder_path, tracker):
         with h5py.File(fpath, "r") as f:
             RDI = f["DS1"][0]   # shape: (32,128,N)
 
-        # 不清空 tracker 的總統計，只清空 history
+        # 1. 清空 tracker 的歷史紀錄
         tracker.history.clear()
         
-        # 【修改點】：在處理單檔前，重置單檔計數器和連續狀態
+        # 2. 清空 tracker 的單檔計數和連續狀態
         tracker.reset_single_file_stats()
 
         # 逐幀
         for i in range(RDI.shape[2]):
             frame = RDI[:, :, i]
+            # 運行正常模式（is_calibrating=False by default）
             result = tracker.process_frame(frame)
 
         # 累計檔案統計到「整個資料夾」的統計
@@ -228,12 +262,6 @@ def run_realtime_test_folder(folder_path, tracker):
         total_distance_safe_false += tracker.count_distance_safe_false
         total_sitting_true        += tracker.count_sitting_true
         total_sitting_false       += tracker.count_sitting_false
-        
-        # 【移除】：原有的手動清空動作已由 tracker.reset_single_file_stats() 取代
-        # tracker.count_distance_safe_true  = 0
-        # tracker.count_distance_safe_false = 0
-        # tracker.count_sitting_true        = 0
-        # tracker.count_sitting_false       = 0
 
     # ====== 整個資料夾的總統計 ======
     print("\n============== TOTAL SUMMARY FOR FOLDER ==============")
@@ -250,6 +278,43 @@ def run_realtime_test_folder(folder_path, tracker):
 
     print(f"連續 True ≥285 次的事件數： {tracker.count_true_285_events}")
     print(f"連續 False ≥285 次的事件數： {tracker.count_false_285_events}")
+    
+    
+# ===============================================
+# Step 5. 新增：校準函式
+# ===============================================
+def run_calibration(nopeople_folder_path, tracker):
+    print("\n[INFO] Starting AVG threshold calibration...")
+    
+    # 找出所有 .h5 檔案 (建議使用整個資料夾，但為了效率，只取第一個檔案)
+    files = [f for f in os.listdir(nopeople_folder_path) if f.endswith(".h5")]
+    files.sort()
+    
+    if not files:
+        print("[ERROR] No .h5 files found for calibration in:", nopeople_folder_path)
+        tracker.calibrate_avg_threshold(k=3) # 即使沒資料也要跑一次，使用預設值
+        return
+
+    # 這裡我們只使用第一個檔案進行校準，如果您希望使用多個檔案，請修改此處的迴圈
+    fpath = os.path.join(nopeople_folder_path, files[0])
+    print(f"[INFO] Using file: {files[0]} for calibration.")
+
+    with h5py.File(fpath, "r") as f:
+        RDI = f["DS1"][0]   # shape: (32,128,N)
+
+    # 清空 history
+    tracker.history.clear()
+    
+    # 逐幀處理 (is_calibrating=True)
+    for i in range(RDI.shape[2]):
+        frame = RDI[:, :, i]
+        # 啟用校準模式
+        tracker.process_frame(frame, is_calibrating=True) 
+
+    # 執行校準計算 (使用 k=3)
+    tracker.calibrate_avg_threshold(k=3)
+    
+    print("[INFO] Calibration finished.")
 
 
 
@@ -258,12 +323,23 @@ def run_realtime_test_folder(folder_path, tracker):
 # ===============================================
 if __name__ == "__main__":
 
-    path_nopeople = r"C:\Users\Lee\Desktop\visionware\dataset\no-people\nopeople.h5"
-    folder_test   = r"C:\Users\Lee\Desktop\visionware\dataset\no-people"
+    # 背景檔案路徑 (用於計算基礎背景)
+    path_nopeople = r"D:\visionware\pinre_home\no-people\_0001_2025_12_03_17_57_53.h5"
+    
+    # 【新增】無人資料夾路徑 (用於動態校準 AVG 閾值)
+    path_nopeople_folder = r"D:\visionware\pinre_home\no-people"
+    
+    # 測試資料夾路徑
+    folder_test   = r"D:\visionware\pinre_home\test_first50_5000_error"
     #folder_test   = r"C:\Users\clara\Downloads\60cm_hclab\60cm_hclab"
     #folder_test   = r"C:\Users\clara\Downloads\no-people_hclab\no-people_hclab"
 
+    # Step 0: 載入背景
     bg = load_background(path_nopeople)
     tracker = RadarStateTracker(bg, window_size=8)
+    
+    # Step 5: 【新增】校準階段
+    run_calibration(path_nopeople_folder, tracker)
 
+    # Step 4: 運行測試
     run_realtime_test_folder(folder_test, tracker)
