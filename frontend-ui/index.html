@@ -14,6 +14,77 @@
 </head>
 
 <body>
+    <!-- Welcome Landing Window -->
+    <div class="landing-overlay" id="landing-overlay">
+        <div class="landing-content">
+            <div class="landing-logo">
+                <div class="radar-animation">
+                    <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Radar circles -->
+                        <circle cx="60" cy="60" r="50" stroke="url(#radarGradient1)" stroke-width="2" opacity="0.3"
+                            class="radar-circle radar-circle-1" />
+                        <circle cx="60" cy="60" r="38" stroke="url(#radarGradient1)" stroke-width="2" opacity="0.5"
+                            class="radar-circle radar-circle-2" />
+                        <circle cx="60" cy="60" r="26" stroke="url(#radarGradient1)" stroke-width="2" opacity="0.7"
+                            class="radar-circle radar-circle-3" />
+                        <!-- Center eye -->
+                        <circle cx="60" cy="60" r="14" fill="url(#radarGradient2)" />
+                        <circle cx="60" cy="60" r="8" fill="white" opacity="0.9" />
+                        <!-- Radar sweep line -->
+                        <line x1="60" y1="60" x2="60" y2="10" stroke="#667eea" stroke-width="2" opacity="0.8"
+                            class="radar-sweep" />
+                        <defs>
+                            <linearGradient id="radarGradient1" x1="0" y1="0" x2="120" y2="120">
+                                <stop offset="0%" stop-color="#667eea" />
+                                <stop offset="100%" stop-color="#764ba2" />
+                            </linearGradient>
+                            <radialGradient id="radarGradient2" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="#667eea" stop-opacity="0.8" />
+                                <stop offset="100%" stop-color="#764ba2" stop-opacity="0.4" />
+                            </radialGradient>
+                        </defs>
+                    </svg>
+                </div>
+            </div>
+
+            <h1 class="landing-title">VisionWave Guardian</h1>
+            <p class="landing-subtitle">智慧健康守護系統</p>
+
+            <div class="landing-description">
+                <div class="feature-item">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 6v6l4 2" />
+                    </svg>
+                    <span>基於<strong>毫米波雷達</strong>技術</span>
+                </div>
+                <div class="feature-item">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span>即時監測<strong>視距與久坐</strong></span>
+                </div>
+                <div class="feature-item">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                    <span>智慧<strong>音效與通知</strong>提醒</span>
+                </div>
+            </div>
+
+            <button class="landing-btn" id="enter-system-btn">
+                <span class="btn-text">進入系統</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+            </button>
+
+            <p class="landing-footer">國立成功大學 工業與資訊管理學系</p>
+        </div>
+    </div>
+
     <!-- Header -->
     <header class="header">
         <div class="container">
@@ -76,7 +147,7 @@
                                 <span class="status-label">檢測中...</span>
                             </div>
                             <div class="metric-value" id="distance-value">--</div>
-                            <div class="metric-description">建議保持 60 公分以上安全距離</div>
+                            <div class="metric-description">建議保持 40 公分以上安全距離</div>
                         </div>
                         <div class="card-footer">
                             <div class="progress-bar">

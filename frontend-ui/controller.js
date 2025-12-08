@@ -4,7 +4,7 @@
 
 // State Management
 const state = {
-    distance_safe: true,  // true = 距離安全 (>= 60cm), false = 距離過近 (< 60cm)
+    distance_safe: true,  // true = 距離安全 (>= 40cm), false = 距離過近 (< 40cm)
     sitting: false        // true = 偵測到坐著, false = 未偵測到
 };
 

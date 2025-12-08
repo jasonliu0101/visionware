@@ -5,7 +5,7 @@
 // Global State
 const state = {
     // Backend data
-    distance_safe: true,   // true = 距離安全 (>= 60cm), false = 距離過近 (< 60cm)
+    distance_safe: true,   // true = 距離安全 (>= 40cm), false = 距離過近 (< 40cm)
     sitting: false,        // true = 偵測到坐著, false = 未偵測到（注意：這不是久坐判斷）
 
     // Distance tracking
@@ -35,8 +35,8 @@ const state = {
 
 // Configuration
 const CONFIG = {
-    // API Mode: 'CONTROLLER' uses the controller page, 'SIMULATED' uses random data, or use actual URL
-    API_ENDPOINT: 'CONTROLLER', // Use 'CONTROLLER' for testing with controller.html, 'SIMULATED' for random data, or actual URL
+    // API Mode: 'CONTROLLER' (遙控器), 'SIMULATED' (模擬), 'FUNCTION' (自定義函數), or URL string (真實API)
+    API_ENDPOINT: 'CONTROLLER',
     POLLING_INTERVAL: 1000, // 1 second (更頻繁的更新以獲得更好的即時性)
 
     // Distance alert thresholds
@@ -46,6 +46,9 @@ const CONFIG = {
     // Sitting alert thresholds  
     SITTING_TRIGGER: 30 * 60 * 1000,         // 30分鐘：久坐超過30分鐘才觸發警示
     SITTING_ALERT_REPEAT: 10 * 60 * 1000,    // 10分鐘：警示後每10分鐘重複提醒
+
+    // Sound settings
+    SOUND_ENABLED: true,                     // 啟用提醒音效
 
     // Other settings
     MAX_CHART_POINTS: 60,          // 60 點 × 10 秒間隔 = 10 分鐘範圍
@@ -63,6 +66,42 @@ let lastChartUpdateTime = 0;  // 上次更新圖表的時間
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 VisionWave Guardian 啟動中...');
+
+    // 設置歡迎頁面的進入系統按鈕
+    const landingOverlay = document.getElementById('landing-overlay');
+    const enterSystemBtn = document.getElementById('enter-system-btn');
+
+    // 檢查是否已經進入過系統
+    const hasEnteredSystem = localStorage.getItem('visionwave_system_entered');
+
+    if (hasEnteredSystem) {
+        // 已經進入過，直接隱藏歡迎頁面
+        landingOverlay.classList.add('hidden');
+        setTimeout(() => {
+            landingOverlay.style.display = 'none';
+        }, 500);
+    }
+
+    // 進入系統按鈕點擊事件
+    enterSystemBtn.addEventListener('click', () => {
+        console.log('✅ 使用者點擊進入系統');
+
+        // 初始化音效系統（需要使用者互動）
+        initAudioContext();
+
+        // 播放歡迎音效
+        playAlertSound('success');
+
+        // 標記已進入系統
+        localStorage.setItem('visionwave_system_entered', 'true');
+
+        // 隱藏歡迎頁面
+        landingOverlay.classList.add('hidden');
+        setTimeout(() => {
+            landingOverlay.style.display = 'none';
+        }, 500);
+    });
+
     initializeChart();
     requestNotificationPermission();
     startMonitoring();
@@ -75,6 +114,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // 立即觸發久坐警示（不論實際久坐時間）
             const testMinutes = Math.floor((state.sittingTotalDuration || 0) / 60000) || 30; // 預設顯示30分鐘
             const alertMessage = `您已經坐著 ${testMinutes} 分鐘了，建議起身休息、伸展一下。`;
+
+            // 播放提醒音效
+            playAlertSound('sitting');
 
             // 顯示頁面內警示
             showAlert('warning', '久坐提醒', alertMessage, 'sitting-alert-test');
@@ -136,6 +178,26 @@ async function fetchHealthData() {
                 resolve(simulateAPIResponse());
             }, 100);
         });
+    } else if (CONFIG.API_ENDPOINT === 'FUNCTION') {
+        // Call custom function directly
+        try {
+            // 假設您的函數掛載在 window 物件上，例如 window.getSensorData()
+            // 請將 getSensorData 替換為您實際的函數名稱
+            if (typeof window.getSensorData === 'function') {
+                const data = await window.getSensorData();
+                return data;
+            } else {
+                console.warn('⚠️ 找不到 window.getSensorData 函數，請確認已定義');
+                // 回傳預設安全狀態避免報錯
+                return {
+                    distance_safe: true,
+                    sitting: false
+                };
+            }
+        } catch (error) {
+            console.error('❌ 呼叫自定義函數失敗:', error);
+            return null;
+        }
     } else {
         // Actual API call
         try {
@@ -198,7 +260,7 @@ async function checkHealth() {
         // 有人坐著才檢查距離
 
         if (!state.distance_safe) {
-            // 距離不OK (< 60cm)
+            // 距離不OK (< 40cm)
 
             if (state.distanceUnsafeStartTime === null) {
                 // 剛開始距離不OK，記錄開始時間
@@ -296,6 +358,91 @@ async function checkHealth() {
 }
 
 // =====================================
+// Sound Notification System
+// =====================================
+
+// Audio Context for playing sounds
+let audioContext = null;
+
+// Initialize Audio Context (requires user interaction on some browsers)
+function initAudioContext() {
+    if (!audioContext) {
+        try {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            console.log('🔊 音效系統已初始化');
+        } catch (error) {
+            console.error('❌ 無法初始化音效系統:', error);
+        }
+    }
+    return audioContext;
+}
+
+// Play alert sound using Web Audio API
+function playAlertSound(type = 'warning') {
+    if (!CONFIG.SOUND_ENABLED) return;
+
+    const ctx = initAudioContext();
+    if (!ctx) return;
+
+    try {
+        // Resume audio context if it's suspended (browser autoplay policy)
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+
+        const now = ctx.currentTime;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        // Different sounds for different alert types
+        if (type === 'distance') {
+            // 距離警示：急促的警告音 (較高頻)
+            oscillator.frequency.setValueAtTime(800, now);
+            oscillator.frequency.setValueAtTime(600, now + 0.1);
+            oscillator.frequency.setValueAtTime(800, now + 0.2);
+
+            gainNode.gain.setValueAtTime(0.3, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+            oscillator.start(now);
+            oscillator.stop(now + 0.3);
+        } else if (type === 'sitting') {
+            // 久坐提醒：柔和的提示音 (雙音調)
+            oscillator.frequency.setValueAtTime(523.25, now); // C5
+            oscillator.frequency.setValueAtTime(659.25, now + 0.15); // E5
+            oscillator.frequency.setValueAtTime(783.99, now + 0.3); // G5
+
+            gainNode.gain.setValueAtTime(0.2, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+            oscillator.start(now);
+            oscillator.stop(now + 0.5);
+        } else if (type === 'success') {
+            // 成功音：愉悅的上升音
+            oscillator.frequency.setValueAtTime(523.25, now); // C5
+            oscillator.frequency.setValueAtTime(659.25, now + 0.1); // E5
+
+            gainNode.gain.setValueAtTime(0.15, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+            oscillator.start(now);
+            oscillator.stop(now + 0.25);
+        }
+
+        oscillator.onended = () => {
+            oscillator.disconnect();
+            gainNode.disconnect();
+        };
+
+    } catch (error) {
+        console.error('❌ 播放音效失敗:', error);
+    }
+}
+
+// =====================================
 // Browser Notification System
 // =====================================
 
@@ -312,6 +459,8 @@ function requestNotificationPermission() {
                 console.log('✅ 通知權限已授予');
                 // 記錄已經顯示過歡迎通知
                 localStorage.setItem('visionwave_notification_welcomed', 'true');
+                // 播放成功音效
+                playAlertSound('success');
                 // 顯示歡迎通知（只有首次授權時才顯示）
                 showBrowserNotification(
                     '✅ VisionWave Guardian',
@@ -394,7 +543,10 @@ function getNotificationIcon(type) {
 // =====================================
 
 function showDistanceAlert() {
-    const alertMessage = '您與螢幕的距離過近！請保持至少 60 公分的安全距離，以保護視力健康。';
+    const alertMessage = '您與螢幕的距離過近！請保持至少 40 公分的安全距離，以保護視力健康。';
+
+    // 播放警示音效
+    playAlertSound('distance');
 
     // 顯示頁面內警示
     showAlert('danger', '視距警示', alertMessage, 'distance-alert');
@@ -406,6 +558,9 @@ function showDistanceAlert() {
 function showSittingAlert() {
     const minutes = Math.floor(state.sittingTotalDuration / 60000);
     const alertMessage = `您已經坐著 ${minutes} 分鐘了，建議起身休息、伸展一下。`;
+
+    // 播放提醒音效
+    playAlertSound('sitting');
 
     // 顯示頁面內警示
     showAlert('warning', '久坐提醒', alertMessage, 'sitting-alert');
