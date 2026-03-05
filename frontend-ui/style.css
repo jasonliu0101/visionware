@@ -955,3 +955,75 @@ body::before {
         font-size: 1.75rem;
     }
 }
+
+/* =====================================
+   Device Connection Banner
+   ===================================== */
+.device-banner {
+    display: none;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    animation: slideInRight 0.4s ease;
+}
+
+.device-banner.visible {
+    display: block;
+}
+
+.device-banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.device-banner-icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    background: rgba(245, 158, 11, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fbbf24;
+    animation: pulse 2s ease infinite;
+}
+
+.device-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.device-banner-text strong {
+    color: #fbbf24;
+    font-size: 1rem;
+}
+
+.device-banner-text span {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+/* Disabled overlay for dashboard when device not connected */
+.dashboard-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+    filter: grayscale(0.6);
+    transition: all var(--transition-base);
+}
+
+.dashboard-disabled .monitor-card:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+@media (max-width: 768px) {
+    .device-banner-content {
+        flex-direction: column;
+        text-align: center;
+    }
+}

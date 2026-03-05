@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # VisionWave Guardian 啟動腳本
-# 用於啟動本地伺服器以支援瀏覽器通知功能
+# 啟動 Flask API 伺服器，整合前端介面與雷達後端
 
 PORT=8000
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,13 +16,17 @@ if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null ; then
     PORT=8001
 fi
 
-# 開啟瀏覽器
-# 等待 1 秒確保伺服器已啟動
-(sleep 1 && open "http://localhost:$PORT/index.html") &
-(sleep 1 && open "http://localhost:$PORT/controller.html") &
+# 檢查 Flask 是否已安裝
+if ! python3 -c "import flask" 2>/dev/null; then
+    echo "📦 安裝必要套件..."
+    pip3 install flask flask-cors
+fi
 
-# 啟動 Python HTTP 伺服器
-echo "✅ 伺服器已啟動！請在瀏覽器中查看。"
+# 開啟瀏覽器（等待 2 秒確保伺服器已啟動）
+(sleep 2 && open "http://localhost:$PORT") &
+
+# 啟動 Flask API 伺服器
+echo "✅ 伺服器啟動中..."
 echo "📝 按 Ctrl+C 停止伺服器"
 cd "$DIR"
-python3 -m http.server $PORT
+python3 server.py
